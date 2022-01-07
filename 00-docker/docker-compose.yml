@@ -1,0 +1,59 @@
+version: '3.3'
+
+services:
+  mosquitto:
+    image: eclipse-mosquitto:latest
+    container_name: mosquitto
+    ports:
+      - 1883:1883
+    volumes:
+      - ../01-mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - ../01-mosquitto/users:/mosquitto/config/users
+      - {DataDir}/mosquitto/data:/mosquitto/data
+      - {DataDir}/mosquitto/log:/mosquitto/log
+    restart: always
+
+  influxdb:
+    image: influxdb:latest
+    container_name: influxdb
+    ports:
+      - 8086:8086
+    volumes:
+      - type: bind
+        source: {DataDir}/influxdb/
+        target: /var/lib/influxdb2
+      - type: bind
+        source: {DataDir}/influxdbconfig/
+        target: /etc/influxdb2
+    environment:
+      - DOCKER_INFLUXDB_INIT_USERNAME={UserName}
+      - DOCKER_INFLUXDB_INIT_PASSWORD={Password}
+      - DOCKER_INFLUXDB_INIT_ORG={OrgName}
+      - DOCKER_INFLUXDB_INIT_BUCKET={BucketName}
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN={Password}
+    restart: always
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    depends_on:
+      - influxdb
+    ports:
+      - 3000:3000
+    volumes:
+      - {DataDir}/grafana:/var/lib/grafana
+    environment:
+      - GF_SERVER_ROOT_URL={URL}:3000/
+      - GF_SMTP_ENABLED=true
+      - GF_RENDERING_CALLBACK_URL={URL}:3000/
+      - GF_DASHBOARDS_MIN_REFRESH_INTERVAL=1ms
+    restart: always
+
+  mqttbridge:
+    build: ../02-bridge
+    image: iotohn/mqttbridge
+    container_name: mqttbridge
+    depends_on:
+      - mosquitto
+      - influxdb
+    restart: always
